@@ -716,8 +716,26 @@ app.use((req, res) => {
 
 });
 
+process.on("uncaughtException", (err) => {
+
+  console.error("UNCAUGHT EXCEPTION");
+  console.error(err);
+
+});
+
+process.on("unhandledRejection", (err) => {
+
+  console.error("UNHANDLED REJECTION");
+  console.error(err);
+
+});
+
+
+
+
+
 // ========================================
-// INICIAR SERVIDOR
+// INICIAR SERVIDOR archivo llamado server.js
 // ========================================
 
 app.listen(PORT, () => {
@@ -731,5 +749,21 @@ app.listen(PORT, () => {
   );
 
   console.log("=================================\n");
+
+});
+
+app.get("/health", (req, res) => {
+
+  res.status(200).json({
+
+    ok: true,
+
+    status: "healthy",
+
+    timestamp: new Date().toISOString(),
+
+    uptime: process.uptime()
+
+  });
 
 });
