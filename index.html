@@ -1,0 +1,455 @@
+html
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>OpenAI Playground</title>
+
+  <style>
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+
+      background: #0f172a;
+      color: white;
+
+      padding: 30px;
+
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      color: #38bdf8;
+    }
+
+    .container {
+
+      max-width: 1200px;
+      margin: auto;
+
+    }
+
+    .card {
+
+      background: #1e293b;
+
+      padding: 20px;
+
+      border-radius: 12px;
+
+      margin-bottom: 30px;
+
+      box-shadow:
+        0 0 20px rgba(0,0,0,.3);
+
+    }
+
+    input,
+    textarea,
+    select {
+
+      width: 100%;
+
+      padding: 12px;
+
+      margin-top: 10px;
+      margin-bottom: 15px;
+
+      border-radius: 8px;
+      border: none;
+
+      background: #334155;
+      color: white;
+
+    }
+
+    button {
+
+      background: #38bdf8;
+      color: black;
+
+      border: none;
+
+      padding: 12px 20px;
+
+      border-radius: 8px;
+
+      cursor: pointer;
+
+      font-weight: bold;
+
+    }
+
+    button:hover {
+      opacity: .8;
+    }
+
+    img {
+
+      max-width: 100%;
+      border-radius: 12px;
+      margin-top: 20px;
+
+    }
+
+    .respuesta {
+
+      margin-top: 20px;
+
+      background: #334155;
+
+      padding: 15px;
+
+      border-radius: 8px;
+
+      white-space: pre-wrap;
+
+    }
+
+    .loading {
+
+      margin-top: 10px;
+
+      color: #facc15;
+
+    }
+
+  </style>
+
+</head>
+
+<body>
+
+  <div class="container">
+
+    <h1>🚀 OpenAI Playground</h1>
+
+
+
+
+
+    <!-- ===================================== -->
+    <!-- CHAT -->
+    <!-- ===================================== -->
+
+    <div class="card">
+
+      <h2>💬 Chat IA</h2>
+
+      <textarea
+        id="mensaje"
+        rows="5"
+        placeholder="Escribe tu mensaje..."
+      ></textarea>
+
+      <button onclick="enviarMensaje()">
+        Enviar mensaje
+      </button>
+
+      <div
+        class="loading"
+        id="loadingChat"
+      ></div>
+
+      <div
+        class="respuesta"
+        id="respuestaChat"
+      ></div>
+
+    </div>
+
+
+
+
+
+    <!-- ===================================== -->
+    <!-- GENERADOR DE IMÁGENES -->
+    <!-- ===================================== -->
+
+    <div class="card">
+
+      <h2>🎨 Generador de imágenes IA</h2>
+
+      <textarea
+        id="promptImagen"
+        rows="4"
+        placeholder="Describe la imagen..."
+      ></textarea>
+
+      <select id="size">
+
+        <option value="1024x1024">
+          1024x1024
+        </option>
+
+        <option value="1792x1024">
+          1792x1024
+        </option>
+
+        <option value="1024x1792">
+          1024x1792
+        </option>
+
+      </select>
+
+      <button onclick="generarImagen()">
+        Generar imagen
+      </button>
+
+      <div
+        class="loading"
+        id="loadingImagen"
+      ></div>
+
+      <img id="imagenGenerada">
+
+    </div>
+
+
+
+
+
+    <!-- ===================================== -->
+    <!-- ANALIZAR IMAGEN -->
+    <!-- ===================================== -->
+
+    <div class="card">
+
+      <h2>🖼️ Analizar imagen</h2>
+
+      <input
+        type="text"
+        id="urlImagen"
+        placeholder="Pega URL de imagen"
+      >
+
+      <button onclick="analizarImagen()">
+        Analizar imagen
+      </button>
+
+      <div
+        class="loading"
+        id="loadingAnalisis"
+      ></div>
+
+      <div
+        class="respuesta"
+        id="respuestaAnalisis"
+      ></div>
+
+    </div>
+
+  </div>
+
+
+
+
+
+  <script>
+
+    // =====================================
+    // CHAT
+    // =====================================
+
+    async function enviarMensaje() {
+
+      try {
+
+        document.getElementById("loadingChat")
+          .innerText = "Pensando...";
+
+        const mensaje =
+          document.getElementById("mensaje").value;
+
+        const response = await fetch(
+          "http://localhost:3000/chat",
+          {
+
+            method: "POST",
+
+            headers: {
+              "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify({
+              mensaje
+            }),
+
+          }
+        );
+
+        const data = await response.json();
+
+        document.getElementById("respuestaChat")
+          .innerText = data.respuesta;
+
+      } catch (error) {
+
+        console.log(error);
+
+        alert("Error en chat");
+
+      } finally {
+
+        document.getElementById("loadingChat")
+          .innerText = "";
+
+      }
+
+    }
+
+
+
+
+
+    // =====================================
+    // GENERAR IMAGEN
+    // =====================================
+
+    async function generarImagen() {
+
+      try {
+
+        document.getElementById("loadingImagen")
+          .innerText = "Generando imagen...";
+
+        const prompt =
+          document.getElementById("promptImagen").value;
+
+        const size =
+          document.getElementById("size").value;
+
+        const response = await fetch(
+          "http://localhost:3000/imagen",
+          {
+
+            method: "POST",
+
+            headers: {
+              "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify({
+              prompt,
+              size
+            }),
+
+          }
+        );
+
+        const data = await response.json();
+
+        console.log(data);
+
+        const img =
+          document.getElementById("imagenGenerada");
+
+        if (data.tipo === "url") {
+
+          img.src = data.imagen;
+
+        }
+
+        else if (data.tipo === "base64") {
+
+          img.src =
+            `data:image/png;base64,${data.imagen}`;
+
+        }
+
+        else {
+
+          alert("Formato desconocido");
+
+        }
+
+      } catch (error) {
+
+        console.log(error);
+
+        alert("Error generando imagen");
+
+      } finally {
+
+        document.getElementById("loadingImagen")
+          .innerText = "";
+
+      }
+
+    }
+
+
+
+
+
+    // =====================================
+    // ANALIZAR IMAGEN
+    // =====================================
+
+    async function analizarImagen() {
+
+      try {
+
+        document.getElementById("loadingAnalisis")
+          .innerText = "Analizando imagen...";
+
+        const imageUrl =
+          document.getElementById("urlImagen").value;
+
+        const response = await fetch(
+          "http://localhost:3000/analizar-imagen",
+          {
+
+            method: "POST",
+
+            headers: {
+              "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify({
+              imageUrl
+            }),
+
+          }
+        );
+
+        const data = await response.json();
+
+        document.getElementById("respuestaAnalisis")
+          .innerText = data.analisis;
+
+      } catch (error) {
+
+        console.log(error);
+
+        alert("Error analizando imagen");
+
+      } finally {
+
+        document.getElementById("loadingAnalisis")
+          .innerText = "";
+
+      }
+
+    }
+
+  </script>
+
+</body>
+
+</html>
+
