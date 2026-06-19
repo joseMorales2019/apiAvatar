@@ -25,7 +25,7 @@ const PORT = process.env.PORT || 3000;
 // CONFIGURACIÓN DE MIDDLEWARES Y CORS
 // ========================================
 app.use(cors({
-  origin: "*",  // Permite llamadas seguras desde cualquier origen (ej. https://www.newbank.store)
+  origin: "*",  // Permite llamadas web desde cualquier origen como https://www.newbank.store
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
@@ -52,7 +52,7 @@ app.use((req, res, next) => {
 if (process.env.OPENAI_API_KEY) {
   console.log("✅ OPENAI_API_KEY: Configurada correctamente.");
 } else {
-  console.log("⚠️ OPENAI_API_KEY: No encontrada. Se utilizarán fallback locales en caso de llamada.");
+  console.log("⚠️ OPENAI_API_KEY: No encontrada. Se utilizarán fallback locales.");
 }
 
 if (process.env.XAI_API_KEY) {
@@ -114,7 +114,7 @@ function sleep(ms) {
 
 // ========================================
 // MANEJADOR MULTI-ENDPOINT: CHAT IA
-// Adopta parámetros en inglés/español y devuelve salidas unificadas (reply e respuesta)
+// Adopta parámetros en inglés/español y devuelve salidas unificadas (reply y respuesta)
 // ========================================
 const handlerChat = async (req, res) => {
   try {
@@ -129,10 +129,11 @@ const handlerChat = async (req, res) => {
     }
 
     if (!process.env.OPENAI_API_KEY) {
+      const defaultFallback = "¡Hola! Para iniciar tu crédito NewBank rápido por WhatsApp escríbenos directamente en el enlace.";
       return res.json({
         ok: true,
-        respuesta: "¡Hola! Para iniciar tu crédito NewBank rápido por WhatsApp escríbenos directamente en el enlace.",
-        reply: "¡Hola! Para iniciar tu crédito NewBank rápido por WhatsApp escríbenos directamente en el enlace."
+        respuesta: defaultFallback,
+        reply: defaultFallback
       });
     }
 
@@ -166,7 +167,7 @@ const handlerChat = async (req, res) => {
     return res.json({
       ok: true,
       respuesta: aiResponse,
-      reply: aiResponse // Ambas variantes de propiedad habilitan el éxito del frontend
+      reply: aiResponse // Ambas propiedades garantizan compatibilidad completa con el frontend
     });
 
   } catch (error) {
@@ -197,10 +198,11 @@ const handlerVideo = async (req, res) => {
     if (!process.env.XAI_API_KEY) {
       console.log("⚠️ Sin XAI_API_KEY, aplicando fallback a video simulado de avatar...");
       await sleep(3500);
+      const mockVideo = "https://stqthrzbvuqcavtsonba.supabase.co/storage/v1/object/public/newbankVideoAnimadoAvatar/avatar-default-loop.mp4";
       return res.json({
         ok: true,
         provider: "xAI Grok Video Simulator",
-        videoUrl: "https://stqthrzbvuqcavtsonba.supabase.co/storage/v1/object/public/newbankVideoAnimadoAvatar/avatar-default-loop.mp4"
+        videoUrl: mockVideo
       });
     }
 
@@ -238,7 +240,7 @@ const handlerVideo = async (req, res) => {
     let failed = false;
     let videoUrlResult = null;
     let attempts = 0;
-    const maxAttempts = 18; // ~108 segundos límite
+    const maxAttempts = 18; // ~108 segundos de tiempo de espera
 
     while (!completed && !failed && attempts < maxAttempts) {
       console.log(`⏳ Esperando generación de video... Intento ${attempts + 1}/${maxAttempts}`);
@@ -338,7 +340,7 @@ const handlerVideoStatus = async (req, res) => {
       if (elapsed < 3) {
         return res.json({ status: "in-progress", progress: 25, progress_text: "Encolando animación en xAI Grok..." });
       } else if (elapsed < 6) {
-        return res.json({ status: "in-progress", progress: 55, progress_text: "Procesando frames intermedios..." });
+        return res.json({ status: "in-progress", progress: 55, progress_text: "Procesando frames..." });
       } else {
         const mockVideo = "https://stqthrzbvuqcavtsonba.supabase.co/storage/v1/object/public/newbankVideoAnimadoAvatar/avatar-default-loop.mp4";
         return res.json({ status: "completed", progress: 100, video_url: mockVideo, videoUrl: mockVideo, is_mock: true });
@@ -367,7 +369,7 @@ const handlerVideoStatus = async (req, res) => {
 };
 
 // ========================================
-// MANEJADORES EXTRA: IMAGENES Y ANALISIS
+// MANEJADORES EXTRA: IMÁGENES Y ANÁLISIS
 // ========================================
 const handlerImagen = async (req, res) => {
   try {
@@ -381,7 +383,7 @@ const handlerImagen = async (req, res) => {
     });
 
     const image = result.data?.[0];
-    if (!image) return res.status(500).json({ ok: false, error: "Dall-E no generó imagen" });
+    if (!image) return res.status(500).json({ ok: false, error: "Dall-E no generó la imagen" });
 
     let buffer;
     if (image.url) {
@@ -447,7 +449,7 @@ app.get("/health", handlerHealth);
 app.get("/api/health", handlerHealth);
 app.get("/test", handlerRoot);
 
-// Chat endpoints
+// Chat Endpoints (Ambas variantes mapeadas)
 app.post("/chat", handlerChat);
 app.post("/api/chat", handlerChat);
 
@@ -468,12 +470,12 @@ app.post("/analizar-imagen", handlerAnalizarImagen);
 app.post("/api/analizar-imagen", handlerAnalizarImagen);
 
 // ========================================
-// CAPTURADORES DE LOGS ADICIONALES
+// MANEJO DE PETICIONES 404
 // ========================================
 app.use((req, res) => {
   res.status(404).json({
     ok: false,
-    error: "Recurso no encontrado",
+    error: "Recurso no encontrado en el servidor",
     metodo: req.method,
     url: req.originalUrl
   });
