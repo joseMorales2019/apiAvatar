@@ -15,7 +15,7 @@ import axios from "axios";
 dotenv.config();
 
 console.log("\n=================================");
-console.log("🚀 INICIANDO SERVIDOR MULTI-API");
+console.log("🚀 INICIANDO SERVIDOR MULTI-API OPTIMIZADO");
 console.log("=================================");
 
 const app = express();
@@ -25,7 +25,7 @@ const PORT = process.env.PORT || 3000;
 // CONFIGURACIÓN DE MIDDLEWARES Y CORS
 // ========================================
 app.use(cors({
-  origin: "*",  // Permite llamadas web desde cualquier origen como https://www.newbank.store
+  origin: "*",  // Permite llamadas web desde cualquier origen de forma segura (ej. https://www.newbank.store)
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
@@ -45,6 +45,36 @@ app.use((req, res, next) => {
   console.log("IP de Origen:", req.ip);
   next();
 });
+
+// ========================================
+// SISTEMA DE REINTENTOS DINÁMICOS CON RETROCESO EXPONENCIAL
+// Evita fallos críticos 503 (Servicio no disponible) y 429 (Tasa de límite)
+// ========================================
+async function retryWithExponentialBackoff(fn, retries = 3, delay = 1000) {
+  try {
+    return await fn();
+  } catch (error) {
+    const status = error?.status || error?.statusCode || error?.response?.status;
+    const isRetriable =
+      retries > 0 &&
+      (status === 503 ||
+       status === 429 ||
+       error?.error?.code === 503 ||
+       error?.error?.code === 429 ||
+       error?.message?.includes("503") ||
+       error?.message?.includes("UNAVAILABLE") ||
+       error?.message?.includes("high demand") ||
+       error?.message?.includes("429") ||
+       error?.response?.data?.error?.message?.includes("high demand"));
+
+    if (isRetriable) {
+      console.warn(`⚠️ [API Retry] Alerta de demanda o rate-limit detectada en la API. Reintentando en ${delay}ms... (${retries} intentos restantes)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return retryWithExponentialBackoff(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+}
 
 // ========================================
 // VALIDACIÓN DE CREDENCIALES
@@ -113,7 +143,7 @@ function sleep(ms) {
 }
 
 // ========================================
-// MANEJADOR MULTI-ENDPOINT: CHAT IA
+// MANEJADOR MULTI-ENDPOINT: CHAT IA (OpenAI con Retry)
 // Adopta parámetros en inglés/español y devuelve salidas unificadas (reply y respuesta)
 // ========================================
 const handlerChat = async (req, res) => {
@@ -156,10 +186,13 @@ const handlerChat = async (req, res) => {
 
     messages.push({ role: "user", content: finalMsg });
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: messages,
-      temperature: 0.75,
+    // Ejecución segura de OpenAI Chat Completion con Exponential Backoff
+    const completion = await retryWithExponentialBackoff(async () => {
+      return await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: messages,
+        temperature: 0.75,
+      });
     });
 
     const aiResponse = completion.choices[0].message.content || "...";
@@ -167,7 +200,7 @@ const handlerChat = async (req, res) => {
     return res.json({
       ok: true,
       respuesta: aiResponse,
-      reply: aiResponse // Ambas propiedades garantizan compatibilidad completa con el frontend
+      reply: aiResponse // Proporciona compatibilidad integral para cualquier variante del frontend
     });
 
   } catch (error) {
@@ -181,7 +214,7 @@ const handlerChat = async (req, res) => {
 };
 
 // ========================================
-// MANEJADOR MULTI-ENDPOINT: GENERAR VIDEO CON GROK (Método síncrono por Polling)
+// MANEJADOR SÍNCRONO GENERACIÓN DE VIDEO (xAI Grok con Retry)
 // ========================================
 const handlerVideo = async (req, res) => {
   console.log("🎬 ENTRÓ A /video (Proceso Síncrono)");
@@ -212,21 +245,23 @@ const handlerVideo = async (req, res) => {
       finalPrompt += " El personaje habla e interactúa única y exclusivamente con expresiones de habla española.";
     }
 
-    const createResponse = await axios.post(
-      `${XAI_API_URL}/videos/generations`,
-      {
-        model: "grok-imagine-video",
-        prompt: finalPrompt,
-        image: { url: imageUrl },
-        duration: duration || 5
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.XAI_API_KEY}`,
-          "Content-Type": "application/json"
+    const createResponse = await retryWithExponentialBackoff(async () => {
+      return await axios.post(
+        `${XAI_API_URL}/videos/generations`,
+        {
+          model: "grok-imagine-video",
+          prompt: finalPrompt,
+          image: { url: imageUrl },
+          duration: duration || 5
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.XAI_API_KEY}`,
+            "Content-Type": "application/json"
+          }
         }
-      }
-    );
+      );
+    });
 
     const requestId = createResponse.data.request_id;
     if (!requestId) {
@@ -247,12 +282,14 @@ const handlerVideo = async (req, res) => {
       await sleep(6000);
       attempts++;
 
-      const pollResponse = await axios.get(
-        `${XAI_API_URL}/videos/${requestId}`,
-        {
-          headers: { Authorization: `Bearer ${process.env.XAI_API_KEY}` }
-        }
-      );
+      const pollResponse = await retryWithExponentialBackoff(async () => {
+        return await axios.get(
+          `${XAI_API_URL}/videos/${requestId}`,
+          {
+            headers: { Authorization: `Bearer ${process.env.XAI_API_KEY}` }
+          }
+        );
+      });
 
       const statusData = pollResponse.data;
       if (statusData.status === "done") {
@@ -287,7 +324,7 @@ const handlerVideo = async (req, res) => {
 };
 
 // ========================================
-// MANEJADORES DE SERVICIOS ADICIONALES (PROGRESIVOS)
+// MANEJADORES DE SERVICIOS ADICIONALES PROGRESSIVE (xAI Grok con Retry)
 // ========================================
 const handlerVideoStart = async (req, res) => {
   try {
@@ -300,21 +337,23 @@ const handlerVideoStart = async (req, res) => {
       return res.json({ success: true, ok: true, mock: true, id: mockId, request_id: mockId });
     }
 
-    const createResponse = await axios.post(
-      `${XAI_API_URL}/videos/generations`,
-      {
-        model: "grok-imagine-video",
-        prompt: prompt || "A professional friendly Salvadoran banker avatar talking details.",
-        image: { url: finalImg },
-        duration: duration || 5
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json"
+    const createResponse = await retryWithExponentialBackoff(async () => {
+      return await axios.post(
+        `${XAI_API_URL}/videos/generations`,
+        {
+          model: "grok-imagine-video",
+          prompt: prompt || "A professional friendly Salvadoran banker avatar talking details.",
+          image: { url: finalImg },
+          duration: duration || 5
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json"
+          }
         }
-      }
-    );
+      );
+    });
 
     return res.json({
       success: true,
@@ -348,11 +387,13 @@ const handlerVideoStatus = async (req, res) => {
     }
 
     if (!key) {
-      return res.status(400).json({ error: "Falta XAI_API_KEY en servidor" });
+      return res.status(400).json({ error: "Falta XAI_API_KEY en el servidor" });
     }
 
-    const pollResponse = await axios.get(`${XAI_API_URL}/videos/${id}`, {
-      headers: { Authorization: `Bearer ${key}` }
+    const pollResponse = await retryWithExponentialBackoff(async () => {
+      return await axios.get(`${XAI_API_URL}/videos/${id}`, {
+        headers: { Authorization: `Bearer ${key}` }
+      });
     });
 
     const data = pollResponse.data;
@@ -361,7 +402,7 @@ const handlerVideoStatus = async (req, res) => {
     } else if (data.status === "failed" || data.status === "expired") {
       return res.status(500).json({ error: "Generación fallida de video" });
     } else {
-      return res.json({ status: "in-progress", progress: 50, progress_text: "Grok está animando tu video..." });
+      return res.json({ status: "in-progress", progress: 50, progress_text: "Grok está animando tu de video..." });
     }
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -376,10 +417,12 @@ const handlerImagen = async (req, res) => {
     const { prompt, size } = req.body;
     if (!prompt) return res.status(400).json({ ok: false, error: "No se recibió prompt" });
 
-    const result = await openai.images.generate({
-      model: "dall-e-3",
-      prompt,
-      size: size || "1024x1024"
+    const result = await retryWithExponentialBackoff(async () => {
+      return await openai.images.generate({
+        model: "dall-e-3",
+        prompt,
+        size: size || "1024x1024"
+      });
     });
 
     const image = result.data?.[0];
@@ -405,15 +448,17 @@ const handlerAnalizarImagen = async (req, res) => {
     const { imageUrl } = req.body;
     if (!imageUrl) return res.status(400).json({ ok: false, error: "Falta imageUrl" });
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{
-        role: "user",
-        content: [
-          { type: "text", text: "Describe detalladamente esta imagen" },
-          { type: "image_url", image_url: { url: imageUrl } }
-        ]
-      }]
+    const response = await retryWithExponentialBackoff(async () => {
+      return await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: "Describe detalladamente esta imagen" },
+            { type: "image_url", image_url: { url: imageUrl } }
+          ]
+        }]
+      });
     });
 
     return res.json({ ok: true, analisis: response.choices[0].message.content });
@@ -449,7 +494,7 @@ app.get("/health", handlerHealth);
 app.get("/api/health", handlerHealth);
 app.get("/test", handlerRoot);
 
-// Chat Endpoints (Ambas variantes mapeadas)
+// Chat Endpoints
 app.post("/chat", handlerChat);
 app.post("/api/chat", handlerChat);
 
@@ -475,7 +520,7 @@ app.post("/api/analizar-imagen", handlerAnalizarImagen);
 app.use((req, res) => {
   res.status(404).json({
     ok: false,
-    error: "Recurso no encontrado en el servidor",
+    error: "Recurso no encontrado en el servidor Render",
     metodo: req.method,
     url: req.originalUrl
   });
