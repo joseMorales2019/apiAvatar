@@ -1,4 +1,4 @@
-//backen en github, render nombre del archivo server.js
+// backend en github, render nombre del archivo: server.js
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -35,7 +35,6 @@ app.use(express.urlencoded({
 // ========================================
 
 app.use((req, res, next) => {
-
   console.log("\n=================================");
   console.log("📥 NUEVA PETICIÓN");
   console.log("=================================");
@@ -47,9 +46,7 @@ app.use((req, res, next) => {
   console.log(req.body);
 
   console.log("=================================\n");
-
   next();
-
 });
 
 // ========================================
@@ -57,23 +54,15 @@ app.use((req, res, next) => {
 // ========================================
 
 if (process.env.OPENAI_API_KEY) {
-
   console.log("✅ OPENAI API KEY ENCONTRADA");
-
 } else {
-
   console.log("❌ OPENAI API KEY NO ENCONTRADA");
-
 }
 
 if (process.env.XAI_API_KEY) {
-
   console.log("✅ XAI API KEY ENCONTRADA");
-
 } else {
-
   console.log("❌ XAI API KEY NO ENCONTRADA");
-
 }
 
 // ========================================
@@ -88,21 +77,18 @@ const openai = new OpenAI({
 // CONFIG XAI
 // ========================================
 
-const XAI_API_URL =
-  "https://api.x.ai/v1";
+const XAI_API_URL = "https://api.x.ai/v1";
 
 // ========================================
 // UTILIDAD WEBP
 // ========================================
 
 async function convertirAWebp(buffer) {
-
   return await sharp(buffer)
     .webp({
       quality: 85
     })
     .toBuffer();
-
 }
 
 // ========================================
@@ -110,41 +96,37 @@ async function convertirAWebp(buffer) {
 // ========================================
 
 function sleep(ms) {
-
   return new Promise(resolve =>
     setTimeout(resolve, ms)
   );
-
 }
 
 // ========================================
-// RUTAS BÁSICAS
+// RUTAS BÁSICAS Y HEALTH CHECK
 // ========================================
 
 app.get("/", (req, res) => {
-
   res.json({
-
     estado: "ok",
-
-    mensaje:
-      "Servidor funcionando correctamente"
-
+    mensaje: "Servidor funcionando correctamente"
   });
-
 });
 
 app.get("/test", (req, res) => {
-
   res.json({
-
     estado: "ok",
-
-    mensaje:
-      "Ruta test funcionando"
-
+    mensaje: "Ruta test funcionando"
   });
+});
 
+// Endpoint de salud (Muy importante para monitoreo de Render)
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
 });
 
 // ========================================
@@ -152,60 +134,37 @@ app.get("/test", (req, res) => {
 // ========================================
 
 app.post("/chat", async (req, res) => {
-
   try {
-
     const { mensaje } = req.body;
 
     if (!mensaje) {
-
       return res.status(400).json({
-
         ok: false,
-
-        error:
-          "No se recibió mensaje"
-
+        error: "No se recibió mensaje"
       });
-
     }
 
-    const response =
-      await openai.responses.create({
-
-        model: "gpt-5",
-
-        input: mensaje
-
-      });
+    // Se actualiza al SDK oficial con gpt-4o-mini (rápido, económico y con excelente comprensión en español)
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "user", content: mensaje }
+      ]
+    });
 
     return res.json({
-
       ok: true,
-
-      respuesta:
-        response.output_text
-
+      respuesta: response.choices[0].message.content
     });
 
   } catch (error) {
-
     console.log(error);
-
     return res.status(500).json({
-
       ok: false,
-
-      error:
-        "Error en chat",
-
-      detalle:
-        error.message
-
+      error: "Error en chat",
+      detalle: error.message
     });
-
   }
-
 });
 
 // ========================================
@@ -213,147 +172,82 @@ app.post("/chat", async (req, res) => {
 // ========================================
 
 app.post("/imagen", async (req, res) => {
-
   console.log("🎨 ENTRÓ A /imagen");
 
   try {
-
-    const {
-      prompt,
-      size
-    } = req.body;
+    const { prompt, size } = req.body;
 
     if (!prompt) {
-
       return res.status(400).json({
-
         ok: false,
-
-        error:
-          "No se recibió prompt"
-
+        error: "No se recibió prompt"
       });
-
     }
 
-    const result =
-      await openai.images.generate({
+    // Se corrige al modelo oficial dall-e-3
+    const result = await openai.images.generate({
+      model: "dall-e-3",
+      prompt,
+      size: size || "1024x1024"
+    });
 
-        model: "gpt-image-1",
-
-        prompt,
-
-        size:
-          size || "1024x1024"
-
-      });
-
-    const image =
-      result.data?.[0];
+    const image = result.data?.[0];
 
     if (!image) {
-
       return res.status(500).json({
-
         ok: false,
-
-        error:
-          "No se generó imagen"
-
+        error: "No se generó imagen"
       });
-
     }
 
     let buffer;
 
     // ====================================
-    // URL
+    // OBTENER DESDE URL
     // ====================================
-
     if (image.url) {
-
-      const response =
-        await axios.get(image.url, {
-
-          responseType:
-            "arraybuffer"
-
-        });
-
-      buffer =
-        Buffer.from(response.data);
-
+      const response = await axios.get(image.url, {
+        responseType: "arraybuffer"
+      });
+      buffer = Buffer.from(response.data);
     }
 
     // ====================================
-    // BASE64
+    // OBTENER DESDE BASE64
     // ====================================
-
     if (image.b64_json) {
-
-      buffer =
-        Buffer.from(
-          image.b64_json,
-          "base64"
-        );
-
+      buffer = Buffer.from(image.b64_json, "base64");
     }
 
     if (!buffer) {
-
       return res.status(500).json({
-
         ok: false,
-
-        error:
-          "No se pudo obtener buffer"
-
+        error: "No se pudo obtener buffer"
       });
-
     }
 
     // ====================================
-    // WEBP
+    // CONVERSIÓN A WEBP
     // ====================================
-
-    const webpBuffer =
-      await convertirAWebp(buffer);
-
-    const webpBase64 =
-      webpBuffer.toString("base64");
+    const webpBuffer = await convertirAWebp(buffer);
+    const webpBase64 = webpBuffer.toString("base64");
 
     console.log("✅ IMAGEN WEBP GENERADA");
 
     return res.json({
-
       ok: true,
-
-      formato:
-        "webp",
-
-      imagen:
-        webpBase64
-
+      formato: "webp",
+      imagen: webpBase64
     });
 
   } catch (error) {
-
     console.log(error);
-
     return res.status(500).json({
-
       ok: false,
-
-      error:
-        "Error generando imagen",
-
-      detalle:
-        error.message
-
+      error: "Error generando imagen",
+      detalle: error.message
     });
-
   }
-
 });
 
 // ========================================
@@ -361,87 +255,51 @@ app.post("/imagen", async (req, res) => {
 // ========================================
 
 app.post("/analizar-imagen", async (req, res) => {
-
   try {
-
     const { imageUrl } = req.body;
 
     if (!imageUrl) {
-
       return res.status(400).json({
-
         ok: false,
-
-        error:
-          "No se recibió imageUrl"
-
+        error: "No se recibió imageUrl"
       });
-
     }
 
-    const response =
-      await openai.responses.create({
-
-        model: "gpt-5",
-
-        input: [
-
-          {
-            role: "user",
-
-            content: [
-
-              {
-                type: "input_text",
-
-                text:
-                  "Describe detalladamente esta imagen"
-
-              },
-
-              {
-                type: "input_image",
-
-                image_url:
-                  imageUrl
-
+    // Se corrige al estándar Multimodal oficial de OpenAI
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Describe detalladamente esta imagen"
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageUrl
               }
-
-            ]
-
-          }
-
-        ]
-
-      });
+            }
+          ]
+        }
+      ]
+    });
 
     return res.json({
-
       ok: true,
-
-      analisis:
-        response.output_text
-
+      analisis: response.choices[0].message.content
     });
 
   } catch (error) {
-
     console.log(error);
-
     return res.status(500).json({
-
       ok: false,
-
-      error:
-        "Error analizando imagen",
-
-      detalle:
-        error.message
-
+      error: "Error analizando imagen",
+      detalle: error.message
     });
-
   }
-
 });
 
 // ========================================
@@ -449,41 +307,25 @@ app.post("/analizar-imagen", async (req, res) => {
 // ========================================
 
 app.post("/video", async (req, res) => {
-
   console.log("🎬 ENTRÓ A /video");
 
   try {
-
-    const {
-      imageUrl,
-      prompt,
-      duration
-    } = req.body;
+    const { imageUrl, prompt, duration } = req.body;
 
     // ====================================
     // VALIDAR INPUTS
     // ====================================
-
     if (!imageUrl) {
-
       return res.status(400).json({
-
         ok: false,
-
-        error:
-          "No se recibió imageUrl"
-
+        error: "No se recibió imageUrl"
       });
-
     }
 
     // ====================================
     // PROMPT FINAL
     // ====================================
-
-    const finalPrompt =
-      prompt ||
-      `
+    const finalPrompt = prompt || `
       A cinematic ultra realistic human avatar.
       Natural body movement.
       Friendly facial expressions.
@@ -491,7 +333,7 @@ app.post("/video", async (req, res) => {
       Professional online seller.
       Smooth motion.
       High quality commercial video.
-      `;
+    `;
 
     console.log("🧠 PROMPT:");
     console.log(finalPrompt);
@@ -499,47 +341,23 @@ app.post("/video", async (req, res) => {
     // ====================================
     // CREAR VIDEO
     // ====================================
-
-    const createResponse =
-      await axios.post(
-
-        `${XAI_API_URL}/videos/generations`,
-
-        {
-
-          model:
-            "grok-imagine-video",
-
-          prompt:
-            finalPrompt,
-
-          image: {
-
-            url:
-              imageUrl
-
-          },
-
-          duration:
-            duration || 5
-
+    const createResponse = await axios.post(
+      `${XAI_API_URL}/videos/generations`,
+      {
+        model: "grok-imagine-video",
+        prompt: finalPrompt,
+        image: {
+          url: imageUrl
         },
-
-        {
-
-          headers: {
-
-            Authorization:
-              `Bearer ${process.env.XAI_API_KEY}`,
-
-            "Content-Type":
-              "application/json"
-
-          }
-
+        duration: duration || 5
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.XAI_API_KEY}`,
+          "Content-Type": "application/json"
         }
-
-      );
+      }
+    );
 
     console.log("📡 RESPUESTA XAI:");
     console.log(createResponse.data);
@@ -547,21 +365,13 @@ app.post("/video", async (req, res) => {
     // ====================================
     // REQUEST ID
     // ====================================
-
-    const requestId =
-      createResponse.data.request_id;
+    const requestId = createResponse.data.request_id;
 
     if (!requestId) {
-
       return res.status(500).json({
-
         ok: false,
-
-        error:
-          "No se recibió request_id"
-
+        error: "No se recibió request_id"
       });
-
     }
 
     console.log("🆔 REQUEST ID:");
@@ -570,107 +380,64 @@ app.post("/video", async (req, res) => {
     // ====================================
     // POLLING
     // ====================================
-
     let completed = false;
-
     let failed = false;
-
     let videoUrl = null;
 
     while (!completed && !failed) {
-
       console.log("⏳ ESPERANDO VIDEO...");
-
       await sleep(5000);
 
-      const pollResponse =
-        await axios.get(
-
-          `${XAI_API_URL}/videos/${requestId}`,
-
-          {
-
-            headers: {
-
-              Authorization:
-                `Bearer ${process.env.XAI_API_KEY}`
-
-            }
-
+      const pollResponse = await axios.get(
+        `${XAI_API_URL}/videos/${requestId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.XAI_API_KEY}`
           }
+        }
+      );
 
-        );
-
-      const data =
-        pollResponse.data;
-
+      const data = pollResponse.data;
       console.log("📡 STATUS:");
       console.log(data);
 
       // ====================================
       // VIDEO TERMINADO
       // ====================================
-
       if (data.status === "done") {
-
         completed = true;
-
-        videoUrl =
-          data.video?.url;
-
+        videoUrl = data.video?.url;
       }
 
       // ====================================
       // ERROR
       // ====================================
-
-      if (
-        data.status === "failed" ||
-        data.status === "expired"
-      ) {
-
+      if (data.status === "failed" || data.status === "expired") {
         failed = true;
-
       }
-
     }
 
     // ====================================
     // ERROR FINAL
     // ====================================
-
     if (failed) {
-
       return res.status(500).json({
-
         ok: false,
-
-        error:
-          "xAI no pudo generar el video"
-
+        error: "xAI no pudo generar el video"
       });
-
     }
 
     // ====================================
     // RESPUESTA FINAL
     // ====================================
-
     return res.json({
-
       ok: true,
-
-      provider:
-        "xAI Grok Imagine",
-
+      provider: "xAI Grok Imagine",
       videoUrl
-
     });
 
   } catch (error) {
-
     console.log("\n❌ ERROR VIDEO ❌");
-
     console.log(
       error.response?.data ||
       error.message ||
@@ -678,93 +445,44 @@ app.post("/video", async (req, res) => {
     );
 
     return res.status(500).json({
-
       ok: false,
-
-      error:
-        "Error generando video",
-
-      detalle:
-        error.response?.data ||
-        error.message
-
+      error: "Error generando video",
+      detalle: error.response?.data || error.message
     });
-
   }
-
 });
 
 // ========================================
-// 404
+// MIDDLEWARE DE RUTA 404
 // ========================================
 
 app.use((req, res) => {
-
   res.status(404).json({
-
     ok: false,
-
-    error:
-      "Ruta no encontrada",
-
-    metodo:
-      req.method,
-
-    url:
-      req.originalUrl
-
+    error: "Ruta no encontrada",
+    metodo: req.method,
+    url: req.originalUrl
   });
-
 });
 
 process.on("uncaughtException", (err) => {
-
   console.error("UNCAUGHT EXCEPTION");
   console.error(err);
-
 });
 
 process.on("unhandledRejection", (err) => {
-
   console.error("UNHANDLED REJECTION");
   console.error(err);
-
 });
 
-
-
-
-
 // ========================================
-// INICIAR SERVIDOR archivo llamado server.js
+// INICIAR SERVIDOR
 // ========================================
 
 app.listen(PORT, () => {
-
   console.log("\n=================================");
   console.log("🚀 SERVIDOR EJECUTÁNDOSE");
   console.log("=================================");
-
-  console.log(
-    `🌐 http://localhost:${PORT}`
-  );
-
+  console.log(`🌐 Puerto de escucha: ${PORT}`);
   console.log("=================================\n");
-
-});
-
-app.get("/health", (req, res) => {
-
-  res.status(200).json({
-
-    ok: true,
-
-    status: "healthy",
-
-    timestamp: new Date().toISOString(),
-
-    uptime: process.uptime()
-
-  });
-
 });
