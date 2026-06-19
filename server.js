@@ -3,7 +3,7 @@
 // Repositorio: joseMorales2019 / apiAvatar (Rama: main)
 // Service ID: srv-d8m9dnsvikkc73duvo10
 // URL de API: https://apiavatar.onrender.com
-// PRUEBA 5
+// PRUEBA 6
 // =========================================================================
 
 import express from "express";
@@ -20,7 +20,7 @@ console.log("🚀 INICIANDO SERVIDOR MULTI-API OPTIMIZADO");
 console.log("=================================");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // ========================================
 // CONFIGURACIÓN DE MIDDLEWARES Y CORS
